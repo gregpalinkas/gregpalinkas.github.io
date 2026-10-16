@@ -1,4 +1,4 @@
-/* Gallery tiles + lightbox, and the hero rack (ink wireframe → solid). */
+/* Gallery tiles + lightbox, and the hero hall (brutalist interior, endless dolly). */
 (function () {
   'use strict';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -38,97 +38,85 @@
   lb.addEventListener('click', function (e) { if (e.target === lb) lb.close(); });
   lb.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
 
-  /* ---------- Hero rack ---------- */
-  var cv = document.getElementById('rack'); if (!cv) return;
-  var ctx = cv.getContext('2d'), W, H;
-  var css = getComputedStyle(document.documentElement);
-  var GROUND = css.getPropertyValue('--ground').trim() || '#EDECE8';
-  function size() { var d = Math.min(devicePixelRatio || 1, 2); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0); }
-  size(); addEventListener('resize', function () { size(); if (reduce) requestAnimationFrame(frame); });
+  /* ---------- Hero: brutalist hall, endless one-point dolly ----------
+     Ink linework on ground. The CSS hatch shows through only as the hall's far opening.
+     One bay passes every 1/SPEED s; pilasters repeat every PIL bays, so the loop is seamless.
+     Reduced motion: single still frame. Paused while the hero is off screen. */
+  var cv = document.getElementById('hall'); if (!cv) return;
+  var ctx = cv.getContext('2d');
+  var GROUND = getComputedStyle(document.documentElement).getPropertyValue('--ground').trim() || '#EDECE8';
+  var SPEED = 1 / 3.2, ZN = .3, ZP = 9, RIBS = 2, PIL = 2, DEP = .12, PW = .22, PD = .12;
+  var W, H, hw, yC = 1.15, yF = -.85, f, cx, cy, t = 0, last = 0, running = true;
 
-  var RW = .62, RD = .9, RH = 2.1, P = .045, boxes = [];
-  function add(b, kind, extra) { var o = { b: b, kind: kind }; for (var k in extra) o[k] = extra[k]; boxes.push(o); }
-  [-RW / 2, RW / 2 - P].forEach(function (x) { [-RD / 2, RD / 2 - P].forEach(function (z) { add([x, -RH / 2, z, x + P, RH / 2, z + P], 'frame'); }); });
-  add([-RW / 2, RH / 2 - P, -RD / 2, RW / 2, RH / 2, RD / 2], 'frame');
-  add([-RW / 2, -RH / 2, -RD / 2, RW / 2, -RH / 2 + P * 1.6, RD / 2], 'frame');
-  var y = -RH / 2 + P * 1.6 + .04, U = .088;
-  [2, 1, 1, 3, 1, 2, 4, 1, 2, 1].forEach(function (u, i) { var h = u * U - .012; if (y + h > RH / 2 - P - .02) return; add([-RW / 2 + P + .005, y, -RD / 2 + .02, RW / 2 - P - .005, y + h, RD / 2 - .06], 'unit', { u: u, i: i }); y += u * U; });
-
-  var faces = [];
-  boxes.forEach(function (B) {
-    var a = B.b[0], b = B.b[1], c = B.b[2], d = B.b[3], e = B.b[4], f = B.b[5];
-    var v = [[a, b, c], [d, b, c], [d, e, c], [a, e, c], [a, b, f], [d, b, f], [d, e, f], [a, e, f]];
-    [[0, 1, 2, 3, [0, 0, -1], 1], [5, 4, 7, 6, [0, 0, 1]], [4, 0, 3, 7, [-1, 0, 0]], [1, 5, 6, 2, [1, 0, 0]], [3, 2, 6, 7, [0, 1, 0]], [4, 5, 1, 0, [0, -1, 0]]]
-      .forEach(function (q) { faces.push({ p: [v[q[0]], v[q[1]], v[q[2]], v[q[3]]], n: q[4], front: !!q[5], B: B, cy: (b + e) / 2 }); });
-  });
-
-  var L = (function (v) { var m = Math.hypot(v[0], v[1], v[2]); return v.map(function (x) { return x / m; }); })([-.5, .6, -.65]);
-  var DIST = 4.2, pointer = 0, ptarget = 0;
-  addEventListener('pointermove', function (e) { ptarget = (e.clientX / innerWidth - .5) * .5; });
-  function rot(p, yaw, pitch) {
-    var x = p[0], y = p[1], z = p[2], c = Math.cos(yaw), s = Math.sin(yaw), t;
-    t = x * c + z * s; z = -x * s + z * c; x = t;
-    c = Math.cos(pitch); s = Math.sin(pitch); t = y * c - z * s; z = y * s + z * c; y = t;
-    return [x, y, z];
+  function size() {
+    var d = Math.min(devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
+    f = H / (yC - yF); cy = H * yC / (yC - yF); cx = W / 2;      // at z = 1 the hall section fills the canvas
+    hw = Math.max(.6, Math.min(1.8, W / H));
   }
-  function proj(p, sc, cx, cy) { var k = sc / (p[2] + DIST); return [cx + p[0] * k, cy - p[1] * k]; }
-  function quadAt(q, u, v) { function m(P, Q, t) { return [P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t, P[2] + (Q[2] - P[2]) * t]; } return m(m(q[0], q[1], u), m(q[3], q[2], u), v); }
-  function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
-  var T = [1.4, 2.6, 3.4, 2.2], CYC = T[0] + T[1] + T[2] + T[3], ymin = -RH / 2 - .05, ymax = RH / 2 + .05;
-  function sweep(t) {
-    t %= CYC;
-    if (t < T[0]) return ymin; t -= T[0];
-    if (t < T[1]) return ymin + (ymax - ymin) * ease(t / T[1]); t -= T[1];
-    if (t < T[2]) return ymax; t -= T[2];
-    return ymax - (ymax - ymin) * ease(t / T[3]);
+  function P(x, y, z) { return [cx + f * x / z, cy - f * y / z]; }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function fog(z) { var far = Math.pow(clamp01((ZP - z) / (ZP - 1.2)), 1.3), n = clamp01((z - ZN) / .7); return far * n * n * (3 - 2 * n); }
+  function seg(x1, y1, z1, x2, y2, z2) {
+    if (z1 < ZN && z2 < ZN) return;
+    if (z1 > ZP) { if (z2 > ZP) return; var k = (ZP - z2) / (z1 - z2); x1 = x2 + (x1 - x2) * k; y1 = y2 + (y1 - y2) * k; z1 = ZP; }
+    if (z2 > ZP) { var k2 = (ZP - z1) / (z2 - z1); x2 = x1 + (x2 - x1) * k2; y2 = y1 + (y2 - y1) * k2; z2 = ZP; }
+    if (z1 < ZN) { var k3 = (ZN - z2) / (z1 - z2); x1 = x2 + (x1 - x2) * k3; y1 = y2 + (y1 - y2) * k3; z1 = ZN; }
+    if (z2 < ZN) { var k4 = (ZN - z1) / (z2 - z1); x2 = x1 + (x2 - x1) * k4; y2 = y1 + (y2 - y1) * k4; z2 = ZN; }
+    var zm = (z1 + z2) / 2, a = fog(zm); if (a < .02) return;
+    var p = P(x1, y1, z1), q = P(x2, y2, z2);
+    ctx.strokeStyle = 'rgba(0,0,0,' + a.toFixed(3) + ')';
+    ctx.lineWidth = Math.min(1.6, .55 + .9 / zm);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
   }
-  function path(pts) { ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath(); }
-
-  var t0 = performance.now();
-  function frame(now) {
-    var t = (now - t0) / 1000;
-    pointer += (ptarget - pointer) * .04;
-    var yaw = -.62 + Math.sin(t * .25) * .22 + pointer, pitch = -.2;
-    var s = reduce ? ymax : sweep(t);
-    ctx.clearRect(0, 0, W, H);
-    var sc = Math.min(W * 1.15, H * .8) * 2.05, cx = W * .5, cy = H * .5;
-    // ground-coloured plinth behind the rack so it reads cleanly over the hatch
-    var list = faces.map(function (f) {
-      var pr = f.p.map(function (p) { return rot(p, yaw, pitch); }), n = rot(f.n, yaw, pitch);
-      var c = [0, 0, 0]; pr.forEach(function (p) { c[0] += p[0] / 4; c[1] += p[1] / 4; c[2] += p[2] / 4; });
-      var vis = n[0] * (0 - c[0]) + n[1] * (0 - c[1]) + n[2] * (-DIST - c[2]) > 0;
-      return { f: f, pr: pr, n: n, z: c[2], vis: vis };
-    }).sort(function (a, b) { return b.z - a.z; });
-
-    list.forEach(function (o) {
-      var solid = o.f.cy < s, pts = o.pr.map(function (p) { return proj(p, sc, cx, cy); });
-      if (!o.vis && solid) return;
-      path(pts);
-      if (solid) {
-        var lam = Math.max(0, o.n[0] * L[0] + o.n[1] * L[1] + o.n[2] * L[2]);
-        var g = o.f.B.kind === 'frame' ? 18 + 40 * lam : 30 + 70 * lam;
-        ctx.fillStyle = 'rgb(' + (g | 0) + ',' + (g | 0) + ',' + ((g - 2) | 0) + ')'; ctx.fill();
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
-      } else {
-        ctx.fillStyle = o.vis ? GROUND : 'transparent'; if (o.vis) ctx.fill();
-        ctx.strokeStyle = o.vis ? '#000' : 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.25; ctx.stroke();
-      }
-      if (o.f.front && o.vis && o.f.B.kind === 'unit') {
-        var q = o.f.p, rows = Math.max(1, o.f.B.u * 2 - 1);
-        ctx.strokeStyle = solid ? 'rgba(237,236,232,.35)' : 'rgba(0,0,0,.55)'; ctx.lineWidth = 1;
-        for (var r = 1; r <= rows; r++) for (var gq = 0; gq < 3; gq++) {
-          var u0 = .08 + gq * .24, a1 = proj(rot(quadAt(q, u0, r / (rows + 1)), yaw, pitch), sc, cx, cy), b1 = proj(rot(quadAt(q, u0 + .18, r / (rows + 1)), yaw, pitch), sc, cx, cy);
-          ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke();
-        }
-        var led = proj(rot(quadAt(q, .92, .5), yaw, pitch), sc, cx, cy), rr = Math.max(1.6, sc * .0016);
-        ctx.fillStyle = solid ? GROUND : '#000'; ctx.fillRect(led[0] - rr, led[1] - rr, rr * 2, rr * 2);
-      }
-    });
-    if (s > ymin + .01 && s < ymax - .01) {
-      var e = .07, c = [[-RW / 2 - e, s, -RD / 2 - e], [RW / 2 + e, s, -RD / 2 - e], [RW / 2 + e, s, RD / 2 + e], [-RW / 2 - e, s, RD / 2 + e]].map(function (p) { return proj(rot(p, yaw, pitch), sc, cx, cy); });
-      path(c); ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.stroke();
+  function bay(z0, k) {
+    var z1 = z0 + 1, i, x0, x1, cw = 2 * hw / (RIBS + 1);
+    // ring frame
+    seg(-hw, yC, z0, hw, yC, z0); seg(-hw, yF, z0, hw, yF, z0); seg(-hw, yF, z0, -hw, yC, z0); seg(hw, yF, z0, hw, yC, z0);
+    // corner runs
+    [[-hw, yC], [hw, yC], [-hw, yF], [hw, yF]].forEach(function (c) { seg(c[0], c[1], z0, c[0], c[1], z1); });
+    // ceiling ribs + recessed coffers
+    for (i = 1; i <= RIBS; i++) { x0 = -hw + i * cw; seg(x0, yC, z0, x0, yC, z1); }
+    seg(-hw, yC, z0 + .5, hw, yC, z0 + .5);                       // mid-bay cross rib: two coffers per bay
+    for (var h = 0; h < 2; h++) for (i = 0; i <= RIBS; i++) {
+      var za = z0 + h * .5, zb = za + .5;
+      x0 = -hw + i * cw; x1 = x0 + cw;
+      var m = cw * .16, mz = .08, yi = yC + DEP, a = [x0 + m, za + mz], b = [x1 - m, zb - mz];
+      seg(a[0], yi, a[1], b[0], yi, a[1]); seg(a[0], yi, b[1], b[0], yi, b[1]);
+      seg(a[0], yi, a[1], a[0], yi, b[1]); seg(b[0], yi, a[1], b[0], yi, b[1]);
+      seg(x0, yC, za, a[0], yi, a[1]); seg(x1, yC, za, b[0], yi, a[1]); seg(x0, yC, zb, a[0], yi, b[1]); seg(x1, yC, zb, b[0], yi, b[1]);
     }
-    if (!reduce) requestAnimationFrame(frame);
+    // floor seams
+    [-hw / 2, 0, hw / 2].forEach(function (x) { seg(x, yF, z0, x, yF, z1); });
+    // pilasters
+    if (((k % PIL) + PIL) % PIL === 0) [-1, 1].forEach(function (s) {
+      var xw = s * hw, xi = s * (hw - PD), za = z0 + .05, zb = za + PW;
+      seg(xi, yF, za, xi, yC, za); seg(xi, yF, zb, xi, yC, zb);
+      seg(xw, yF, za, xi, yF, za); seg(xw, yC, za, xi, yC, za);
+      seg(xw, yF, zb, xi, yF, zb); seg(xw, yC, zb, xi, yC, zb);
+      seg(xi, yF, za, xi, yF, zb); seg(xi, yC, za, xi, yC, zb);
+    });
   }
-  requestAnimationFrame(frame);
+  function draw() {
+    ctx.fillStyle = GROUND; ctx.fillRect(0, 0, W, H);
+    var a = P(-hw, yC, ZP), b = P(hw, yF, ZP);
+    ctx.clearRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);     // far opening: CSS hatch shows through
+    ctx.lineCap = 'round';
+    var travel = t * SPEED, base = Math.floor(travel), off = travel - base;
+    for (var i = 0; i <= ZP + 1; i++) bay(i - off, base + i);
+  }
+  function frame(now) {
+    if (last) t += Math.min(.1, (now - last) / 1000); last = now;
+    draw();
+    if (running && !reduce) requestAnimationFrame(frame); else last = 0;
+  }
+  size(); draw();
+  addEventListener('resize', function () { size(); draw(); });
+  if (!reduce) {
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (e) {
+      var vis = e[0].isIntersecting; if (vis && !running) { running = true; requestAnimationFrame(frame); } running = vis;
+    }).observe(cv);
+    requestAnimationFrame(frame);
+  }
 })();

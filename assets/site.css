@@ -121,9 +121,9 @@ a.t-row:hover .t-desc, a.t-row:focus-visible .t-desc { color: var(--ground); }
   .contact { min-height: 0; }
 }
 
-/* ---------- Additions: rack in hatch, gallery, career, lightbox ---------- */
+/* ---------- Additions: hall in hatch, gallery, career, lightbox ---------- */
 .hatch { position: relative; }
-#rack { position: absolute; inset: 0; width: 100%; height: 100%; }
+#hall { position: absolute; display: block; inset: 0; width: 100%; height: 100%; }
 
 .section-head.split { justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .section-head.split .body { padding-bottom: 6px; }
