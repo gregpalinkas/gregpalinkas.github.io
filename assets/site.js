@@ -1,4 +1,4 @@
-/* Gallery tiles + lightbox, and the hero hall (brutalist interior, endless dolly). */
+/* Gallery tiles + lightbox, and the hero proof-line animation. */
 (function () {
   'use strict';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -38,84 +38,96 @@
   lb.addEventListener('click', function (e) { if (e.target === lb) lb.close(); });
   lb.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
 
-  /* ---------- Hero: brutalist hall, endless one-point dolly ----------
-     Ink linework on ground. The CSS hatch shows through only as the hall's far opening.
-     One bay passes every 1/SPEED s; pilasters repeat every PIL bays, so the loop is seamless.
-     Reduced motion: single still frame. Paused while the hero is off screen. */
-  var cv = document.getElementById('hall'); if (!cv) return;
+  /* ---------- Hero: the proof line, animated ----------
+     RUN is pressed, 100 SKUs latch from raw (dashed) to material in one diagonal wave, the clock runs to 05:00.
+     Bars: share of the same job finished in the same elapsed time. Pipeline reaches 100%, manual reaches 0.2%.
+     10 s loop. Reduced motion: single finished frame. Paused while the hero is off screen. */
+  var cv = document.getElementById('proof'); if (!cv) return;
   var ctx = cv.getContext('2d');
-  var GROUND = getComputedStyle(document.documentElement).getPropertyValue('--ground').trim() || '#EDECE8';
-  var SPEED = 1 / 3.2, ZN = .3, ZP = 9, RIBS = 2, PIL = 2, DEP = .12, PW = .22, PD = .12;
-  var W, H, hw, yC = 1.15, yF = -.85, f, cx, cy, t = 0, last = 0, running = true;
-
+  var INK = '#000', GROUND = '#EDECE8', MUTED = '#383836', FONT = '"Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif';
+  var T = 10, MATS = [0, 1, 3, 2], W, H, L, t = 0, last = 0, running = true, seen = false;
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function ease(x) { x = clamp01(x); return x * x * (3 - 2 * x); }
+  function font(w, s) { return w + ' ' + s + 'px ' + FONT; }
+  function txt(s, x, y, w, size, align, color) { ctx.font = font(w, size); ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = color; ctx.fillText(s, x, y); }
+  function hatch(x, y, w, h, gap, dir) {
+    ctx.beginPath();
+    for (var k = -h; k < w + h; k += gap) { if (dir > 0) { ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); } else { ctx.moveTo(x + k, y); ctx.lineTo(x + k + h, y + h); } }
+    ctx.stroke();
+  }
+  function mmss(sec) { sec = Math.round(sec); var m = Math.floor(sec / 60), s = sec % 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
+  function mat(x, y, w, m) {
+    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 1;
+    if (m === 0) { ctx.fillRect(x, y, w, w); return; }
+    if (m === 3) { ctx.strokeRect(x + .5, y + .5, w - 1, w - 1); var k = Math.round(w * .3); ctx.fillRect(x + k, y + k, w - 2 * k, w - 2 * k); return; }
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, w); ctx.clip(); hatch(x, y, w, w, Math.max(2.5, w / 5), m === 1 ? -1 : 1); ctx.restore();
+    ctx.strokeRect(x + .5, y + .5, w - 1, w - 1);
+  }
+  function bars(x, y, w, s, done, big) {
+    var gap = big ? 34 : 30, bh = 10, m = s / 6, right = m.toFixed(1) + '%';
+    txt('PIPELINE', x, y, 900, 11, 'left', INK); txt(Math.round(s * 100) + '%', x + w, y, 900, 11, 'right', INK);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + 5.5, w - 1, bh);
+    ctx.fillStyle = INK; ctx.fillRect(x, y + 5, w * s, bh + 1);
+    var y2 = y + gap;
+    txt('MANUAL', x, y2, 700, 11, 'left', MUTED);
+    if (done > 0) {
+      ctx.globalAlpha = done;
+      if (w >= 220) { ctx.font = font(700, 11); txt('49:55:00 TO GO · ', x + w - ctx.measureText(right).width, y2, 700, 11, 'right', MUTED); }
+      else txt('49:55:00 TO GO', x, y2 + bh + 20, 700, 11, 'left', MUTED);
+      ctx.globalAlpha = 1;
+    }
+    txt(right, x + w, y2, 700, 11, 'right', MUTED);
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y2 + 5.5, w - 1, bh); ctx.setLineDash([]);
+    if (s > 0) { ctx.fillStyle = INK; ctx.fillRect(x, y2 + 5, Math.max(1.5, w * m / 100), bh + 1); }
+  }
   function size() {
     var d = Math.min(devicePixelRatio || 1, 2);
-    W = cv.clientWidth; H = cv.clientHeight;
+    W = cv.clientWidth; H = cv.clientHeight; if (!W || !H) return;
     cv.width = Math.round(W * d); cv.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
-    f = H / (yC - yF); cy = H * yC / (yC - yF); cx = W / 2;      // at z = 1 the hall section fills the canvas
-    hw = Math.max(.6, Math.min(1.8, W / H));
-  }
-  function P(x, y, z) { return [cx + f * x / z, cy - f * y / z]; }
-  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
-  function fog(z) { var far = Math.pow(clamp01((ZP - z) / (ZP - 1.2)), 1.3), n = clamp01((z - ZN) / .7); return far * n * n * (3 - 2 * n); }
-  function seg(x1, y1, z1, x2, y2, z2) {
-    if (z1 < ZN && z2 < ZN) return;
-    if (z1 > ZP) { if (z2 > ZP) return; var k = (ZP - z2) / (z1 - z2); x1 = x2 + (x1 - x2) * k; y1 = y2 + (y1 - y2) * k; z1 = ZP; }
-    if (z2 > ZP) { var k2 = (ZP - z1) / (z2 - z1); x2 = x1 + (x2 - x1) * k2; y2 = y1 + (y2 - y1) * k2; z2 = ZP; }
-    if (z1 < ZN) { var k3 = (ZN - z2) / (z1 - z2); x1 = x2 + (x1 - x2) * k3; y1 = y2 + (y1 - y2) * k3; z1 = ZN; }
-    if (z2 < ZN) { var k4 = (ZN - z1) / (z2 - z1); x2 = x1 + (x2 - x1) * k4; y2 = y1 + (y2 - y1) * k4; z2 = ZN; }
-    var zm = (z1 + z2) / 2, a = fog(zm); if (a < .02) return;
-    var p = P(x1, y1, z1), q = P(x2, y2, z2);
-    ctx.strokeStyle = 'rgba(0,0,0,' + a.toFixed(3) + ')';
-    ctx.lineWidth = Math.min(1.6, .55 + .9 / zm);
-    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
-  }
-  function bay(z0, k) {
-    var z1 = z0 + 1, i, x0, x1, cw = 2 * hw / (RIBS + 1);
-    // ring frame
-    seg(-hw, yC, z0, hw, yC, z0); seg(-hw, yF, z0, hw, yF, z0); seg(-hw, yF, z0, -hw, yC, z0); seg(hw, yF, z0, hw, yC, z0);
-    // corner runs
-    [[-hw, yC], [hw, yC], [-hw, yF], [hw, yF]].forEach(function (c) { seg(c[0], c[1], z0, c[0], c[1], z1); });
-    // ceiling ribs + recessed coffers
-    for (i = 1; i <= RIBS; i++) { x0 = -hw + i * cw; seg(x0, yC, z0, x0, yC, z1); }
-    seg(-hw, yC, z0 + .5, hw, yC, z0 + .5);                       // mid-bay cross rib: two coffers per bay
-    for (var h = 0; h < 2; h++) for (i = 0; i <= RIBS; i++) {
-      var za = z0 + h * .5, zb = za + .5;
-      x0 = -hw + i * cw; x1 = x0 + cw;
-      var m = cw * .16, mz = .08, yi = yC + DEP, a = [x0 + m, za + mz], b = [x1 - m, zb - mz];
-      seg(a[0], yi, a[1], b[0], yi, a[1]); seg(a[0], yi, b[1], b[0], yi, b[1]);
-      seg(a[0], yi, a[1], a[0], yi, b[1]); seg(b[0], yi, a[1], b[0], yi, b[1]);
-      seg(x0, yC, za, a[0], yi, a[1]); seg(x1, yC, za, b[0], yi, a[1]); seg(x0, yC, zb, a[0], yi, b[1]); seg(x1, yC, zb, b[0], yi, b[1]);
+    if (W / H > 1.05) {
+      var pad = 20, cell = Math.floor(Math.min(H - 2 * pad, W * .5) / 10);
+      L = { land: true, cell: cell, gx: pad, gy: Math.round((H - cell * 10) / 2) }; L.px = L.gx + cell * 10 + 24; L.pw = W - L.px - 20;
+    } else {
+      var top = 100, bot = 82, side = 22, c2 = Math.floor(Math.min((W - 2 * side) / 10, (H - top - bot) / 10));
+      L = { land: false, cell: c2, gx: Math.round((W - c2 * 10) / 2), gy: top + Math.round((H - top - bot - c2 * 10) / 2) };
     }
-    // floor seams
-    [-hw / 2, 0, hw / 2].forEach(function (x) { seg(x, yF, z0, x, yF, z1); });
-    // pilasters
-    if (((k % PIL) + PIL) % PIL === 0) [-1, 1].forEach(function (s) {
-      var xw = s * hw, xi = s * (hw - PD), za = z0 + .05, zb = za + PW;
-      seg(xi, yF, za, xi, yC, za); seg(xi, yF, zb, xi, yC, zb);
-      seg(xw, yF, za, xi, yF, za); seg(xw, yC, za, xi, yC, za);
-      seg(xw, yF, zb, xi, yF, zb); seg(xw, yC, zb, xi, yC, zb);
-      seg(xi, yF, za, xi, yF, zb); seg(xi, yC, za, xi, yC, zb);
-    });
   }
-  function draw() {
+  function draw(time) {
+    if (!L) return;
+    var u = time % T, cell = L.cell, gx = L.gx, gy = L.gy, ins = Math.max(1.5, Math.round(cell * .12)), w = cell - 2 * ins, on = 0;
     ctx.fillStyle = GROUND; ctx.fillRect(0, 0, W, H);
-    var a = P(-hw, yC, ZP), b = P(hw, yF, ZP);
-    ctx.clearRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);     // far opening: CSS hatch shows through
-    ctx.lineCap = 'round';
-    var travel = t * SPEED, base = Math.floor(travel), off = travel - base;
-    for (var i = 0; i <= ZP + 1; i++) bay(i - off, base + i);
+    for (var i = 0; i < 100; i++) {
+      var r = Math.floor(i / 10), q = i % 10, dd = (r + q) / 18, li = 1.0 + dd * 3.4, ui = 8.8 + dd * .9;
+      var x = gx + q * cell + ins, y = gy + r * cell + ins;
+      if (u >= li && u < ui) { on++; var a = ease((u - li) / .18), sz = w * (.5 + .5 * a), o = (w - sz) / 2; mat(x + o, y + o, sz, MATS[q % 4]); }
+      else { ctx.setLineDash(cell > 18 ? [3, 3] : [2, 2]); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, w - 1); ctx.setLineDash([]); }
+    }
+    var s = u >= 8.8 ? 0 : clamp01((u - 1.0) / 3.6), done = u >= 8.8 ? 0 : ease((u - 4.8) / .5), pressed = u >= .6 && u < 1.15;
+    var X0 = L.land ? L.px : gx, X1 = L.land ? L.px + L.pw : gx + cell * 10;
+    var bw = 46, bh = 20, bx = X1 - bw, by = L.land ? gy : 14;
+    ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.fillStyle = INK;
+    if (pressed) { ctx.fillRect(bx, by + 2, bw, bh); txt('RUN', bx + bw / 2, by + 16, 900, 11, 'center', GROUND); }
+    else { ctx.fillRect(bx + 2, by + 2, bw, bh); ctx.fillStyle = GROUND; ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx + .75, by + .75, bw - 1.5, bh - 1.5); txt('RUN', bx + bw / 2, by + 14, 900, 11, 'center', INK); }
+    txt('MATERIAL PASS', X0, L.land ? gy + 10 : 26, 700, 10, 'left', MUTED);
+    var big = L.land ? 34 : 46, cy0 = L.land ? gy + 58 : 76;
+    txt(mmss(s * 300), X0, cy0, 900, big, 'left', INK);
+    txt((on < 10 ? '00' : on < 100 ? '0' : '') + on + ' / 100 SKUS', L.land ? X0 : X1, L.land ? cy0 + 20 : cy0, 700, 11, L.land ? 'left' : 'right', MUTED);
+    if (L.land) bars(X0, gy + cell * 10 - 46, L.pw, s, done, false); else bars(X0, H - 62, X1 - X0, s, done, true);
   }
   function frame(now) {
     if (last) t += Math.min(.1, (now - last) / 1000); last = now;
-    draw();
+    draw(t);
     if (running && !reduce) requestAnimationFrame(frame); else last = 0;
   }
-  size(); draw();
-  addEventListener('resize', function () { size(); draw(); });
+  size(); draw(reduce ? 6.5 : 0);
+  addEventListener('resize', function () { size(); draw(reduce ? 6.5 : t); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { draw(reduce ? 6.5 : t); });
   if (!reduce) {
     if ('IntersectionObserver' in window) new IntersectionObserver(function (e) {
-      var vis = e[0].isIntersecting; if (vis && !running) { running = true; requestAnimationFrame(frame); } running = vis;
+      var vis = e[0].isIntersecting; if (vis) seen = true;
+      if (!seen) return;                                  // never pause on an unconfirmed report
+      if (vis && !running) { running = true; requestAnimationFrame(frame); }
+      running = vis;
     }).observe(cv);
     requestAnimationFrame(frame);
   }
