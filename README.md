@@ -1,6 +1,6 @@
 # gregpalinkas.github.io
 
-Portfolio of Greg Palinkas. Static site, no build step: `index.html` + `assets/`.
+Portfolio of Gregory Palinkas. Static site, no build step: `index.html` + `assets/`.
 
 - Copy and sections: `index.html`
 - Styles: `assets/site.css` · Hover diagrams: `assets/diagrams.js` · Gallery + hero rack: `assets/site.js`
