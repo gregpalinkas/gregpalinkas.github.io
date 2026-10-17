@@ -39,8 +39,7 @@ svg text { font-family: inherit; }
 .hero-main { padding: 40px var(--pad); display: flex; flex-direction: column; justify-content: space-between; gap: 64px; border-right: var(--rule) solid var(--ink); min-width: 0; }
 .intro { font-size: clamp(18px, 1.45vw, 21px); font-weight: 500; letter-spacing: -.01em; line-height: 1.45; max-width: 56ch; }
 .intro-row { display: flex; align-items: flex-end; gap: 28px; }
-.headshot { flex: none; display: block; width: clamp(140px, 12.5vw, 210px); height: auto; aspect-ratio: 1; border: var(--rule) solid var(--ink); mix-blend-mode: multiply; }
-@media (max-width: 760px) { .intro-row { flex-direction: column; align-items: flex-start; gap: 20px; } .headshot { width: 150px; } }
+
 .hero-name { font-size: clamp(64px, 13.4vw, 192px); font-weight: 900; line-height: .82; letter-spacing: -.065em; text-transform: uppercase; }
 .hero-side { display: flex; flex-direction: column; min-width: 0; }
 .hatch { flex-grow: 1; min-height: 160px; background-image: repeating-linear-gradient(-45deg, var(--ink) 0 1px, transparent 1px 14px); }
@@ -196,4 +195,17 @@ dialog figcaption b { font-weight: 900; text-transform: uppercase; letter-spacin
   .big { font-size: min(64px, calc((100vw - 40px) / 6.65)); }
   .hero-name { font-size: min(64px, calc((100vw - 40px) / 5.3)); }
   .email { font-size: calc((100vw - 40px) / 11.2); white-space: nowrap; overflow-wrap: normal; }
+}
+
+/* Floating portrait (cut-out, bottom fades into the ground) */
+.portrait { display: block; height: auto; }
+@media (min-width: 761px) {
+  .hero-main { display: grid; container-type: inline-size; grid-template-columns: minmax(0, 1fr) clamp(200px, 26%, 440px); grid-template-rows: auto 1fr; column-gap: 32px; row-gap: 40px; }
+  /* name sized to the column left of the portrait: Archivo 900 GREGORY/PALINKAS = 5.08em, +4% margin */
+  .hero-name { grid-column: 1; grid-row: 1; font-size: min(192px, calc((100cqw - clamp(200px, 26cqw, 440px) - 32px) / 5.3)); }
+  .intro-row { grid-column: 1; grid-row: 2; align-self: end; }
+  .portrait { grid-column: 2; grid-row: 1 / span 2; align-self: center; width: 100%; }
+}
+@media (max-width: 760px) {
+  .portrait { width: min(240px, 70%); margin: -8px 0 -16px; }
 }
