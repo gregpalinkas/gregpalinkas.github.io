@@ -197,15 +197,15 @@ dialog figcaption b { font-weight: 900; text-transform: uppercase; letter-spacin
   .email { font-size: calc((100vw - 40px) / 11.2); white-space: nowrap; overflow-wrap: normal; }
 }
 
-/* Floating portrait (cut-out, bottom fades into the ground) */
+/* Cut-out portrait: right of the name, flat bottom resting on the hero's bottom rule */
 .portrait { display: block; height: auto; }
 @media (min-width: 761px) {
-  .hero-main { display: grid; container-type: inline-size; grid-template-columns: minmax(0, 1fr) clamp(200px, 26%, 440px); grid-template-rows: auto 1fr; column-gap: 32px; row-gap: 40px; }
+  .hero-main { display: grid; container-type: inline-size; grid-template-columns: minmax(0, 1fr) clamp(200px, 30%, 480px); grid-template-rows: auto 1fr; column-gap: 32px; row-gap: 40px; }
   /* name sized to the column left of the portrait: Archivo 900 GREGORY/PALINKAS = 5.08em, +4% margin */
-  .hero-name { grid-column: 1; grid-row: 1; font-size: min(192px, calc((100cqw - clamp(200px, 26cqw, 440px) - 32px) / 5.3)); }
+  .hero-name { grid-column: 1; grid-row: 1; font-size: min(192px, calc((100cqw - clamp(200px, 30cqw, 480px) - 32px) / 5.3)); }
   .intro-row { grid-column: 1; grid-row: 2; align-self: end; }
-  .portrait { grid-column: 2; grid-row: 1 / span 2; align-self: center; width: 100%; }
+  .portrait { grid-column: 2; grid-row: 1 / span 2; align-self: end; width: 100%; margin-bottom: -40px; }
 }
 @media (max-width: 760px) {
-  .portrait { width: min(240px, 70%); margin: -8px 0 -16px; }
+  .portrait { width: min(360px, 100%); margin: 8px 0 0; }
 }
