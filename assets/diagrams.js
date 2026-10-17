@@ -1,6 +1,7 @@
 /* Work-row diagram animations.
    Hover / keyboard focus drives progress t: 0 → 1 over DURATION (linear), holds at 1.
    Leaving reverses from wherever t currently is. Touch devices: plays once on scroll-in.
+   Renderers flagged .live keep running while held at 1 (the Real-time twin's readouts).
    prefers-reduced-motion: diagrams stay at rest (t = 0). */
 (function () {
   'use strict';
@@ -51,21 +52,74 @@
       };
     },
 
-    // Alcubierre shape function, recomputed each frame: sigma 1.5 → 8.
-    curve: function (svg) {
-      var path = svg.querySelector('[data-curve]');
-      var label = svg.querySelector('[data-sigma]');
-      var R = 1, N = 120;
-      return function (t) {
-        var sigma = 1.5 + 6.5 * t, norm = 2 * Math.tanh(sigma * R), d = '';
-        for (var i = 0; i <= N; i++) {
-          var r = -3 + 6 * i / N;
-          var f = (Math.tanh(sigma * (r + R)) - Math.tanh(sigma * (r - R))) / norm;
-          d += (i ? 'L' : 'M') + (20 + 260 * i / N).toFixed(1) + ' ' + (150 - 110 * f).toFixed(1);
-        }
-        path.setAttribute('d', d);
-        label.textContent = 'f(r), σ = ' + sigma.toFixed(1);
-      };
+    // Live digital twin: a to-scale rack wired to three live readouts. Hover syncs it: leaders draw in,
+    // values go live, sparklines scroll and a sync scan sweeps the rack. At rest: OFFLINE, dashed, no values.
+    twin: function (svg) {
+      var NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs, parent) {
+        var e = document.createElementNS(NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        (parent || svg).appendChild(e); return e;
+      }
+      function wave(tt, a) { return a[0] + a[1] * Math.sin(a[2] * tt + a[3]) + a[4] * Math.sin(a[5] * tt + a[6]); }
+      // device row on the rack, readout row, metric
+      var M = [
+        { name: 'SW-01', unit: '°C', dy: 25, ry: 36, f: [36.6, 1.2, 1.4, 2, .6, 4.7, 0], lo: 34.5, hi: 38.5, dp: 1, dx: 60.6 },
+        { name: 'SRV-07', unit: '%', dy: 66.7, ry: 92, f: [66, 11, 1.6, .5, 6, 5.1, 2], lo: 48, hi: 84, dp: 0, dx: 60.6 },
+        { name: 'PDU-A', unit: 'kW', dy: 133, ry: 148, f: [4.45, .25, 1.9, 0, .14, 5.9, 1], lo: 4.0, hi: 4.9, dp: 2, dx: 64 }
+      ];
+      var SX = 112, SW = 168, SH = 16, NSAMP = 32, DT = .16;
+      M.forEach(function (m) {
+        var d = 'M' + m.dx + ' ' + m.dy + 'H86L100 ' + m.ry + 'H' + (SX - 4);
+        m.base = el('path', { d: d, 'stroke-width': 1, 'stroke-dasharray': '2 3' });
+        m.lead = el('path', { d: d, 'stroke-width': 1.5 });
+        m.len = m.lead.getTotalLength();
+        m.dot = el('rect', { width: 4, height: 4, fill: 'currentColor', stroke: 'none' });
+        m.label = el('text', { x: SX, y: m.ry - 6, 'font-size': 10, 'font-weight': 700, fill: 'currentColor', stroke: 'none' });
+        m.label.textContent = m.name;
+        m.val = el('text', { x: SX + SW, y: m.ry - 6, 'font-size': 12, 'font-weight': 900, 'text-anchor': 'end', fill: 'currentColor', stroke: 'none', style: 'font-variant-numeric: tabular-nums' });
+        m.box = el('rect', { x: SX, y: m.ry, width: SW, height: SH, 'stroke-width': 1, 'stroke-dasharray': '2 3' });
+        m.spark = el('polyline', { points: '', 'stroke-width': 1.5 });
+      });
+      var status = el('text', { x: 280, y: 11, 'font-size': 10, 'font-weight': 700, 'text-anchor': 'end', fill: 'currentColor', stroke: 'none' });
+      var blip = el('rect', { x: 0, y: 3.5, width: 6, height: 6, fill: 'currentColor', stroke: 'none' });
+      var scan = el('path', { d: 'M14 0H71', 'stroke-width': 1.5 });
+      var fps = el('text', { x: 20, y: 11, 'font-size': 10, 'font-weight': 700, fill: 'currentColor', stroke: 'none', style: 'font-variant-numeric: tabular-nums' });
+      var T0 = performance.now();
+
+      function render(t) {
+        var tt = (performance.now() - T0) / 1000, sync = Math.min(1, Math.max(0, t / .55)), on = t >= .55, k = Math.max(0, Math.min(1, (t - .45) / .4));
+        M.forEach(function (m, i) {
+          var p = Math.max(0, Math.min(1, sync * 1.3 - i * .15));
+          m.lead.setAttribute('stroke-dasharray', (m.len * p).toFixed(1) + ' ' + m.len.toFixed(1));
+          var pt = m.lead.getPointAtLength(m.len * p);
+          m.dot.setAttribute('x', (pt.x - 2).toFixed(1)); m.dot.setAttribute('y', (pt.y - 2).toFixed(1));
+          m.dot.setAttribute('visibility', p > 0 && p < 1 ? 'visible' : 'hidden');
+          m.box.setAttribute('stroke-dasharray', on ? 'none' : '2 3');
+          if (!on) { m.val.textContent = '-- ' + m.unit; m.spark.setAttribute('points', ''); return; }
+          var v = wave(tt, m.f), pts = '';
+          for (var s = 0; s < NSAMP; s++) {
+            var sv = wave(tt - (NSAMP - 1 - s) * DT, m.f), x = SX + 2 + (SW - 4) * s / (NSAMP - 1);
+            var y = m.ry + SH - 2 - (SH - 4) * Math.max(0, Math.min(1, (sv - m.lo) / (m.hi - m.lo)));
+            // samples arrive left to right as the readout comes online
+            if (s / (NSAMP - 1) <= k) pts += x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+          }
+          m.spark.setAttribute('points', pts);
+          m.val.textContent = v.toFixed(m.dp) + ' ' + m.unit;
+        });
+        status.textContent = on ? 'LIVE' : 'OFFLINE';
+        // frame rate: re-sampled four times a second, hovering just under and at 60
+        var n = Math.floor(tt * 4), r = Math.sin(n * 12.9898) * 43758.5453; r -= Math.floor(r);
+        fps.textContent = on ? (56 + Math.round(r * 4 + (r > .7 ? 0 : .5))) + ' FPS' : '-- FPS';
+        var sw = status.getComputedTextLength ? status.getComputedTextLength() : 30;
+        blip.setAttribute('x', (280 - sw - 10).toFixed(1));
+        blip.setAttribute('visibility', on && Math.floor(tt * 2) % 2 === 0 ? 'visible' : 'hidden');
+        var sy = 20 + 140 * ((tt / 1.6) % 1);
+        scan.setAttribute('transform', 'translate(0 ' + sy.toFixed(1) + ')');
+        scan.setAttribute('visibility', on ? 'visible' : 'hidden');
+      }
+      render.live = true;   // keeps animating while held at t = 1
+      return render;
     },
 
     // Terrain relief rises (staggered per contour), then small trees pop up along the ridges.
@@ -154,7 +208,8 @@
       last = now;
       t = target > t ? Math.min(target, t + step) : Math.max(target, t - step);
       render(t);
-      if (t !== target) { raf = requestAnimationFrame(tick); } else { raf = 0; last = null; }
+      // live renderers (the Real-time twin) keep animating while held at t = 1
+      if (t !== target || (render.live && target === 1)) { raf = requestAnimationFrame(tick); } else { raf = 0; last = null; }
     }
     function go(v) {
       if (reduce.matches) return;
