@@ -39,8 +39,9 @@
   lb.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
 
   /* ---------- Hero: the proof line, animated ----------
-     RUN is pressed, 100 SKUs latch from raw (dashed) to material in one diagonal wave, the clock runs to 05:00.
-     Bars: share of the same job finished in the same elapsed time. Pipeline reaches 100%, manual reaches 0.2%.
+     RUN is pressed once, 100 SKUs latch from raw (dashed) to material in one diagonal wave.
+     Counter: hands-on hours replaced, 1.5 h per SKU (Greg's figure, load time excluded) = 150.0 h for 100 SKUs.
+     Bars: BY HAND fills to 150 h; PIPELINE shows the single click. No tool runtime is claimed.
      10 s loop. Reduced motion: single finished frame. Paused while the hero is off screen. */
   var cv = document.getElementById('proof'); if (!cv) return;
   var ctx = cv.getContext('2d');
@@ -55,7 +56,6 @@
     for (var k = -h; k < w + h; k += gap) { if (dir > 0) { ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); } else { ctx.moveTo(x + k, y); ctx.lineTo(x + k + h, y + h); } }
     ctx.stroke();
   }
-  function mmss(sec) { sec = Math.round(sec); var m = Math.floor(sec / 60), s = sec % 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
   function mat(x, y, w, m) {
     ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 1;
     if (m === 0) { ctx.fillRect(x, y, w, w); return; }
@@ -63,22 +63,15 @@
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, w); ctx.clip(); hatch(x, y, w, w, Math.max(2.5, w / 5), m === 1 ? -1 : 1); ctx.restore();
     ctx.strokeRect(x + .5, y + .5, w - 1, w - 1);
   }
-  function bars(x, y, w, s, done, big) {
-    var gap = big ? 34 : 30, bh = 10, m = s / 6, right = m.toFixed(1) + '%';
-    txt('PIPELINE', x, y, 900, 11, 'left', INK); txt(Math.round(s * 100) + '%', x + w, y, 900, 11, 'right', INK);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + 5.5, w - 1, bh);
-    ctx.fillStyle = INK; ctx.fillRect(x, y + 5, w * s, bh + 1);
+  function bars(x, y, w, on, clicked, big) {
+    var gap = big ? 34 : 30, bh = 10, hrs = on * 1.5;
+    txt('BY HAND', x, y, 700, 11, 'left', MUTED); txt(hrs.toFixed(1) + ' H', x + w, y, 700, 11, 'right', MUTED);
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + 5.5, w - 1, bh); ctx.setLineDash([]);
+    if (on > 0) { ctx.save(); ctx.beginPath(); ctx.rect(x, y + 5, w * on / 100, bh + 1); ctx.clip(); ctx.strokeStyle = INK; ctx.lineWidth = .75; hatch(x, y + 5, w, bh + 1, 3, -1); ctx.restore(); }
     var y2 = y + gap;
-    txt('MANUAL', x, y2, 700, 11, 'left', MUTED);
-    if (done > 0) {
-      ctx.globalAlpha = done;
-      if (w >= 220) { ctx.font = font(700, 11); txt('49:55:00 TO GO · ', x + w - ctx.measureText(right).width, y2, 700, 11, 'right', MUTED); }
-      else txt('49:55:00 TO GO', x, y2 + bh + 20, 700, 11, 'left', MUTED);
-      ctx.globalAlpha = 1;
-    }
-    txt(right, x + w, y2, 700, 11, 'right', MUTED);
-    ctx.setLineDash([3, 3]); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y2 + 5.5, w - 1, bh); ctx.setLineDash([]);
-    if (s > 0) { ctx.fillStyle = INK; ctx.fillRect(x, y2 + 5, Math.max(1.5, w * m / 100), bh + 1); }
+    txt('PIPELINE', x, y2, 900, 11, 'left', INK); txt(clicked ? '1 CLICK' : '0 CLICKS', x + w, y2, 900, 11, 'right', INK);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y2 + 5.5, w - 1, bh);
+    if (clicked) { ctx.fillStyle = INK; ctx.fillRect(x, y2 + 5, bh + 1, bh + 1); }
   }
   function size() {
     var d = Math.min(devicePixelRatio || 1, 2);
@@ -102,17 +95,17 @@
       if (u >= li && u < ui) { on++; var a = ease((u - li) / .18), sz = w * (.5 + .5 * a), o = (w - sz) / 2; mat(x + o, y + o, sz, MATS[q % 4]); }
       else { ctx.setLineDash(cell > 18 ? [3, 3] : [2, 2]); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, w - 1); ctx.setLineDash([]); }
     }
-    var s = u >= 8.8 ? 0 : clamp01((u - 1.0) / 3.6), done = u >= 8.8 ? 0 : ease((u - 4.8) / .5), pressed = u >= .6 && u < 1.15;
+    var clicked = u >= .6 && u < 8.8, pressed = u >= .6 && u < 1.15;
     var X0 = L.land ? L.px : gx, X1 = L.land ? L.px + L.pw : gx + cell * 10;
     var bw = 46, bh = 20, bx = X1 - bw, by = L.land ? gy : 14;
     ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.fillStyle = INK;
     if (pressed) { ctx.fillRect(bx, by + 2, bw, bh); txt('RUN', bx + bw / 2, by + 16, 900, 11, 'center', GROUND); }
     else { ctx.fillRect(bx + 2, by + 2, bw, bh); ctx.fillStyle = GROUND; ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx + .75, by + .75, bw - 1.5, bh - 1.5); txt('RUN', bx + bw / 2, by + 14, 900, 11, 'center', INK); }
-    txt('MATERIAL PASS', X0, L.land ? gy + 10 : 26, 700, 10, 'left', MUTED);
+    txt(L.land ? 'HOURS REPLACED' : 'HANDS-ON HOURS REPLACED', X0, L.land ? gy + 10 : 26, 700, L.land ? 9 : 10, 'left', MUTED);
     var big = L.land ? 34 : 46, cy0 = L.land ? gy + 58 : 76;
-    txt(mmss(s * 300), X0, cy0, 900, big, 'left', INK);
+    txt((on * 1.5).toFixed(1), X0, cy0, 900, big, 'left', INK);
     txt((on < 10 ? '00' : on < 100 ? '0' : '') + on + ' / 100 SKUS', L.land ? X0 : X1, L.land ? cy0 + 20 : cy0, 700, 11, L.land ? 'left' : 'right', MUTED);
-    if (L.land) bars(X0, gy + cell * 10 - 46, L.pw, s, done, false); else bars(X0, H - 62, X1 - X0, s, done, true);
+    if (L.land) bars(X0, gy + cell * 10 - 46, L.pw, on, clicked, false); else bars(X0, H - 62, X1 - X0, on, clicked, true);
   }
   function frame(now) {
     if (last) t += Math.min(.1, (now - last) / 1000); last = now;

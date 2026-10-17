@@ -38,6 +38,9 @@ svg text { font-family: inherit; }
 .hero { display: grid; grid-template-columns: 3fr 1fr; min-height: 720px; border-bottom: var(--rule) solid var(--ink); }
 .hero-main { padding: 40px var(--pad); display: flex; flex-direction: column; justify-content: space-between; gap: 64px; border-right: var(--rule) solid var(--ink); min-width: 0; }
 .intro { font-size: clamp(18px, 1.45vw, 21px); font-weight: 500; letter-spacing: -.01em; line-height: 1.45; max-width: 56ch; }
+.intro-row { display: flex; align-items: flex-end; gap: 28px; }
+.headshot { flex: none; display: block; width: clamp(140px, 12.5vw, 210px); height: auto; aspect-ratio: 1; border: var(--rule) solid var(--ink); mix-blend-mode: multiply; }
+@media (max-width: 760px) { .intro-row { flex-direction: column; align-items: flex-start; gap: 20px; } .headshot { width: 150px; } }
 .hero-name { font-size: clamp(64px, 13.4vw, 192px); font-weight: 900; line-height: .82; letter-spacing: -.065em; text-transform: uppercase; }
 .hero-side { display: flex; flex-direction: column; min-width: 0; }
 .hatch { flex-grow: 1; min-height: 160px; background-image: repeating-linear-gradient(-45deg, var(--ink) 0 1px, transparent 1px 14px); }
@@ -184,4 +187,13 @@ dialog figcaption b { font-weight: 900; text-transform: uppercase; letter-spacin
   .c-head { display: none; }
   .c-org { color: var(--muted); font-size: 15px; }
   .lb-prev, .lb-next { top: auto; bottom: 20px; transform: none; }
+}
+.contact-head { display: flex; flex-direction: column; gap: 20px; }
+.invite { font-size: clamp(20px, 2vw, 28px); font-weight: 500; line-height: 1.3; letter-spacing: -.015em; max-width: 40ch; }
+
+/* Phone type sizing: measured in Archivo 900 (em widths: DISCIPLINES 6.39, GREGORY/PALINKAS 5.08, email 10.74), 20px gutters, ~4% margin */
+@media (max-width: 760px) {
+  .big { font-size: min(64px, calc((100vw - 40px) / 6.65)); }
+  .hero-name { font-size: min(64px, calc((100vw - 40px) / 5.3)); }
+  .email { font-size: calc((100vw - 40px) / 11.2); white-space: nowrap; overflow-wrap: normal; }
 }
