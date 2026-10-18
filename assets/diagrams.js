@@ -2,12 +2,15 @@
    Hover / keyboard focus drives progress t: 0 → 1 over DURATION (linear), holds at 1.
    Leaving reverses from wherever t currently is. Touch devices: plays once on scroll-in.
    Renderers flagged .live keep running while held at 1 (the Real-time twin's readouts).
-   prefers-reduced-motion: diagrams stay at rest (t = 0). */
+   prefers-reduced-motion: diagrams show their finished frame (t = 1) until the visitor
+   presses Play animations (site.js fires 'motionchange' on document). */
 (function () {
   'use strict';
   var DURATION = 1200;
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var canHover = window.matchMedia('(hover: hover)');
+  var optIn = false;
+  function motionOK() { return !reduce.matches || optIn; }
 
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function seg(t, a, b) { return clamp01((t - a) / (b - a)); }
@@ -212,12 +215,14 @@
       if (t !== target || (render.live && target === 1)) { raf = requestAnimationFrame(tick); } else { raf = 0; last = null; }
     }
     function go(v) {
-      if (reduce.matches) return;
+      if (!motionOK()) return;
       target = v;
       if (!raf) { last = null; raf = requestAnimationFrame(tick); }
     }
+    function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; last = null; }
 
-    render(0);
+    t = target = motionOK() ? 0 : 1;
+    render(t);
     row.addEventListener('focus', function () { go(1); });
     row.addEventListener('blur', function () { go(0); });
 
@@ -226,9 +231,28 @@
       row.addEventListener('mouseleave', function () { go(0); });
     } else if ('IntersectionObserver' in window) {
       var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) { if (e.isIntersecting) { go(1); io.disconnect(); } });
+        entries.forEach(function (e) { if (e.isIntersecting && motionOK()) { go(1); io.disconnect(); } });
       }, { threshold: 0.6 });
       io.observe(svg);
     }
+
+    // Reduced-motion visitors: Play resets each diagram and plays it as it scrolls into view
+    // (immediately if already visible); Pause returns every diagram to its finished frame.
+    var playIO = null;
+    document.addEventListener('motionchange', function (e) {
+      optIn = e.detail.on;
+      if (!reduce.matches) return;
+      stop();
+      if (playIO) { playIO.disconnect(); playIO = null; }
+      if (optIn) {
+        t = target = 0; render(0);
+        if ('IntersectionObserver' in window) {
+          playIO = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) { if (en.isIntersecting) { go(1); playIO.disconnect(); playIO = null; } });
+          }, { threshold: 0.6 });
+          playIO.observe(svg);
+        } else { go(1); }
+      } else { t = target = 1; render(1); }
+    });
   });
 })();

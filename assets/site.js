@@ -1,7 +1,7 @@
 /* Gallery tiles + lightbox, and the hero node-graph animation. */
 (function () {
   'use strict';
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)'), reduce = reduceMQ.matches;
 
   /* ---------- Gallery: cover from first image; tiles with no cover are removed ---------- */
   var lb = document.getElementById('lb'), media = document.getElementById('lbMedia'), cap = document.getElementById('lbCap');
@@ -287,13 +287,29 @@
   size(); draw(reduce ? hero.rest : 0);
   addEventListener('resize', function () { size(); draw(reduce ? hero.rest : t); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { draw(reduce ? hero.rest : t); });
-  if (!reduce) {
-    if ('IntersectionObserver' in window) new IntersectionObserver(function (e) {
-      var vis = e[0].isIntersecting; if (vis) seen = true;
-      if (!seen) return;                                  // never pause on an unconfirmed report
-      if (vis && !running) { running = true; requestAnimationFrame(frame); }
-      running = vis;
-    }).observe(cv);
-    requestAnimationFrame(frame);
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) {
+    var vis = e[0].isIntersecting; if (vis) seen = true;
+    if (!seen || reduce) return;                        // never pause on an unconfirmed report
+    if (vis && !running) { running = true; requestAnimationFrame(frame); }
+    running = vis;
+  }).observe(cv);
+  if (!reduce) requestAnimationFrame(frame);
+
+  /* ---------- Reduced motion: finished frames by default, opt-in Play / Pause ----------
+     Only shown when the OS asks for reduced motion. The choice lasts for this tab's session. */
+  var btn = document.getElementById('motionToggle');
+  function setMotion(on) {
+    reduce = !on;
+    if (btn) { btn.textContent = on ? 'Pause animations' : 'Play animations'; btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    try { sessionStorage.setItem('motion', on ? 'on' : 'off'); } catch (e) {}
+    document.dispatchEvent(new CustomEvent('motionchange', { detail: { on: on } }));
+    if (on) { t = 0; last = 0; running = true; requestAnimationFrame(frame); }
+    else { running = false; draw(hero.rest); }
+  }
+  if (btn && reduceMQ.matches) {
+    btn.hidden = false;
+    btn.addEventListener('click', function () { setMotion(reduce); });
+    var saved = null; try { saved = sessionStorage.getItem('motion'); } catch (e) {}
+    if (saved === 'on') setMotion(true);
   }
 })();

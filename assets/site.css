@@ -126,6 +126,9 @@ a.t-row:hover .t-desc, a.t-row:focus-visible .t-desc { color: var(--ground); }
 /* ---------- Additions: proof animation in hatch, gallery, career, lightbox ---------- */
 .hatch { position: relative; }
 #proof { position: absolute; display: block; inset: 0; width: 100%; height: 100%; }
+/* Shown only to visitors whose OS asks for reduced motion (see site.js). */
+.motion-btn { background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 700; padding: 10px 16px; cursor: pointer; }
+.motion-btn[hidden] { display: none; }
 
 .section-head.split { justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .section-head.split .body { padding-bottom: 6px; }
