@@ -3,23 +3,38 @@
   'use strict';
   var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)'), reduce = reduceMQ.matches;
 
-  /* ---------- Gallery: cover from first image; tiles with no cover are removed ---------- */
+  /* ---------- Gallery: cover from first image; tiles with no cover are removed ----------
+     Video tiles (.v-tile) also need a YouTube ID in data-yt; without one they are removed.
+     The YouTube player is only requested on click (privacy-enhanced domain), never on page load. */
   var lb = document.getElementById('lb'), media = document.getElementById('lbMedia'), cap = document.getElementById('lbCap');
   var prev = document.getElementById('lbPrev'), next = document.getElementById('lbNext');
   var gal = [], gi = 0, gName = '', gMeta = '';
 
+  function drop(tile) {
+    var g = tile.parentElement; tile.remove();
+    if (!g.querySelector('.g-tile')) { var w = g.closest('.reel-wrap'); (w || g).remove(); }
+  }
   document.querySelectorAll('.g-tile').forEach(function (tile) {
+    var yt = tile.classList.contains('v-tile') ? (tile.dataset.yt || '').trim() : null;
+    if (yt !== null && !/^[A-Za-z0-9_-]{11}$/.test(yt)) { drop(tile); return; }
     var imgs = tile.dataset.images.split(','), frame = tile.querySelector('.frame');
     var name = tile.querySelector('.g-name').textContent, meta = tile.querySelector('.g-meta').textContent;
     var img = new Image();
     img.alt = name + ', ' + meta;
     img.onload = function () {
       frame.appendChild(img);
-      if (imgs.length > 1) { var c = document.createElement('span'); c.className = 'count'; c.textContent = imgs.length + ' images'; frame.appendChild(c); }
+      if (yt) {
+        var p = document.createElement('span'); p.className = 'v-play'; frame.appendChild(p);
+        if (tile.dataset.len) { var l = document.createElement('span'); l.className = 'count'; l.textContent = tile.dataset.len; frame.appendChild(l); }
+      } else if (imgs.length > 1) { var c = document.createElement('span'); c.className = 'count'; c.textContent = imgs.length + ' images'; frame.appendChild(c); }
     };
-    img.onerror = function () { var g = tile.parentElement; tile.remove(); if (!g.querySelector('.g-tile')) g.remove(); };
+    img.onerror = function () { drop(tile); };
     img.src = imgs[0];
-    tile.addEventListener('click', function () { gal = imgs; gi = 0; gName = name; gMeta = meta; show(); lb.showModal(); });
+    if (yt) { tile.setAttribute('aria-label', 'Play video: ' + name + ', ' + meta); }
+    tile.addEventListener('click', function () {
+      if (yt) { gal = []; gName = name; gMeta = meta; showVideo(yt); } else { gal = imgs; gi = 0; gName = name; gMeta = meta; show(); }
+      lb.showModal();
+    });
   });
 
   function show() {
@@ -31,11 +46,24 @@
     prev.hidden = next.hidden = gal.length < 2;
     if (gal[gi + 1]) { new Image().src = gal[gi + 1]; }
   }
-  function step(d) { gi = (gi + d + gal.length) % gal.length; show(); }
+  function showVideo(id) {
+    media.innerHTML = '';
+    var box = document.createElement('div'), f = document.createElement('iframe');
+    box.className = 'lb-video';
+    f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1';
+    f.title = gName; f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.allowFullscreen = true;
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    box.appendChild(f); media.appendChild(box);
+    cap.innerHTML = '<b></b><span></span>';
+    cap.firstChild.textContent = gName; cap.lastChild.textContent = gMeta;
+    prev.hidden = next.hidden = true;
+  }
+  function step(d) { if (gal.length < 2) return; gi = (gi + d + gal.length) % gal.length; show(); }
   prev.onclick = function () { step(-1); };
   next.onclick = function () { step(1); };
   document.getElementById('lbClose').onclick = function () { lb.close(); };
   lb.addEventListener('click', function (e) { if (e.target === lb) lb.close(); });
+  lb.addEventListener('close', function () { media.innerHTML = ''; });   // unloads the player, so audio stops on close
   lb.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
 
   /* ---------- Hero: prototype -> standard -> scale, as a node graph ----------

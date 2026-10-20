@@ -175,6 +175,19 @@ dialog figcaption b { font-weight: 900; text-transform: uppercase; letter-spacin
 .lb-prev { left: 20px; } .lb-next { right: 20px; }
 @media (prefers-reduced-motion: reduce) { .g-tile img { transition: none; } }
 
+/* Directed & Cut: video band under the game grid. Same tile + rule language; 16:9 frames, play mark, click-to-load YouTube. */
+.reel-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; padding: 56px var(--pad) 22px; border-bottom: var(--rule) solid var(--ink); }
+.reel-title { font-size: clamp(40px, 4.6vw, 68px); font-weight: 900; line-height: .88; letter-spacing: -.055em; text-transform: uppercase; }
+.reel-meta { font-size: 16px; line-height: 1.4; color: var(--muted); max-width: 62ch; padding-bottom: 4px; }
+.reel .g-tile .frame { aspect-ratio: 16 / 9; }
+.v-tile { cursor: pointer; }
+.v-play { position: absolute; left: 0; bottom: 0; width: 64px; height: 64px; background: var(--ink); }
+.v-play::before { content: ""; position: absolute; left: 25px; top: 20px; border-left: 20px solid var(--ground); border-top: 12px solid transparent; border-bottom: 12px solid transparent; }
+.v-tile:hover .v-play, .v-tile:focus-visible .v-play { background: var(--ground); }
+.v-tile:hover .v-play::before, .v-tile:focus-visible .v-play::before { border-left-color: var(--ink); }
+.lb-video { width: min(94vw, 1400px, calc(80vh * 16 / 9)); aspect-ratio: 16 / 9; background: #000; border: var(--hair) solid #383836; }
+.lb-video iframe { display: block; width: 100%; height: 100%; border: 0; }
+
 @media (max-width: 1100px) {
   .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .g-tile.feature { grid-row: auto; }
@@ -185,6 +198,9 @@ dialog figcaption b { font-weight: 900; text-transform: uppercase; letter-spacin
   .gallery { grid-template-columns: 1fr; }
   .g-tile.feature { grid-column: auto; }
   .g-cap { padding: 16px var(--pad) 20px; }
+  .reel-head { padding-top: 40px; }
+  .v-play { width: 52px; height: 52px; }
+  .v-play::before { left: 20px; top: 16px; border-left-width: 16px; border-top-width: 10px; border-bottom-width: 10px; }
   .c-row { grid-template-columns: 1fr; gap: 6px; padding: 20px var(--pad); }
   .c-head { display: none; }
   .c-org { color: var(--muted); font-size: 15px; }
